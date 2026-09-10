@@ -11,6 +11,7 @@ puros. A geração de embeddings vive em ingestion.py / retrieval.py.
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -197,7 +198,13 @@ def search(query_vector, *, k=5, exclude_book_id=None, line=None) -> list[dict]:
         metadata = result["metadatas"][0][i]
         book_id = metadata["book_id"]
         book_entry = catalog.get(book_id)
-        if not book_entry:
+        # Rever tratamento de erro: chunks órfãos não podem ser silenciados
+        if book_entry is None:
+            print(
+                f"search: chunk {chunk_id} refere-se a book_id {book_id} "
+                "não presente no catálogo",
+                file=sys.stderr,
+            )
             continue
         hits.append({
             "book_id": book_id,
