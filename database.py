@@ -131,6 +131,9 @@ def save_book(*, book_id, title, author, source_path, line="default", chunks):
             "line": line,
             "page_start": c["page_start"],
             "page_end": c["page_end"],
+            # Numeração do livro (rótulo); sem ela, cai para o índice posicional.
+            "label_start": c.get("label_start") or str(c["page_start"]),
+            "label_end": c.get("label_end") or str(c["page_end"]),
         }
         for c in chunks
     ]
@@ -214,6 +217,10 @@ def search(query_vector, *, k=5, exclude_book_id=None, line=None) -> list[dict]:
             "line": metadata["line"],
             "page_start": metadata["page_start"],
             "page_end": metadata["page_end"],
+            # Rótulo (numeração do livro) é o que se cita; o índice posicional
+            # (page_start/page_end) serve para localizar a página no PDF.
+            "label_start": metadata.get("label_start") or str(metadata["page_start"]),
+            "label_end": metadata.get("label_end") or str(metadata["page_end"]),
             "text": result["documents"][0][i],
             "score": 1 - result["distances"][0][i],  # cosseno: 1 = idêntico, 0 = ortogonal
         })

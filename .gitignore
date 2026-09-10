@@ -12,3 +12,6 @@ data/
 # SO / editores
 .DS_Store
 Thumbs.db
+
+# Dumps de validação da extração
+*_extraido.txt
