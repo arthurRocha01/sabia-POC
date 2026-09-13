@@ -94,6 +94,12 @@ def list_books() -> list[dict]:
     )
 
 
+def all_documents() -> list[str]:
+    """Todos os textos de chunks do acervo (para análises locais, sem API)."""
+    result = _get_collection().get(include=["documents"])
+    return [doc for doc in (result["documents"] or []) if doc]
+
+
 def delete_book(book_id: str) -> None:
     """Remove os chunks do livro do armazenamento e sua entrada no catálogo."""
     if book_id not in _load_catalog():
