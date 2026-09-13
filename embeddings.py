@@ -16,6 +16,7 @@ variável de ambiente.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -44,6 +45,10 @@ BATCH_DELAY = float(os.environ.get("EMBEDDING_BATCH_DELAY", "10"))
 DOCUMENT_TASK = os.environ.get("EMBEDDING_TASK_DOCUMENT", "RETRIEVAL_DOCUMENT")
 QUERY_TASK = os.environ.get("EMBEDDING_TASK_QUERY", "RETRIEVAL_QUERY")
 
+# Como separar os dois tipos de 429 (só um deles vale retry):
+#  - limite por MINUTO: esperar e tentar de novo resolve;
+#  - cota DIÁRIA esgotada: não resolve, só reseta no dia seguinte (a API marca
+#    esse caso com "PerDay" no quotaId).
 # Em caso de 429: quantas tentativas e quanto esperar entre elas.
 MAX_ATTEMPTS = int(os.environ.get("EMBEDDING_MAX_ATTEMPTS", "5"))
 RETRY_SLEEP = float(os.environ.get("EMBEDDING_RETRY_SLEEP", "20"))
@@ -86,6 +91,17 @@ def _batches(texts: list[str], budget_chars: int) -> list[list[str]]:
     return batches
 
 
+def _is_daily_quota(error: Exception) -> bool:
+    """Cota DIÁRIA esgotada? Retry não resolve — só o reset do dia seguinte."""
+    return "PerDay" in str(error)
+
+
+def _retry_delay(error: Exception) -> float | None:
+    """Extrai o retryDelay que a própria API sugere, quando informado."""
+    match = re.search(r"""['"]retryDelay['"]\s*:\s*['"]([0-9.]+)s""", str(error))
+    return float(match.group(1)) if match else None
+
+
 def _embed_batch(texts: list[str], task_type: str) -> list[list[float]]:
     """Embeda um lote (com o papel explicado em task_type) e trata o limite."""
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -98,15 +114,23 @@ def _embed_batch(texts: list[str], task_type: str) -> list[list[float]]:
             embeddings = response.embeddings or []
             return [embedding.values or [] for embedding in embeddings]
         except Exception as error:  # noqa: BLE001 — classifica e decide
+            if _is_daily_quota(error):
+                raise RuntimeError(
+                    f"cota diária de embeddings esgotada no free tier ({EMBEDDING_MODEL}). "
+                    "Não adianta tentar de novo: reseta à meia-noite do Pacífico "
+                    "(~05h no horário de Brasília). Para ingerir agora, ative o "
+                    "billing (Tier 1 remove o teto diário de requisições)."
+                ) from error
             limited = getattr(error, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(error)
             if not limited or attempt == MAX_ATTEMPTS:
                 raise
+            delay = _retry_delay(error) or RETRY_SLEEP
             print(
-                f"embeddings: limite de taxa atingido (tentativa {attempt}/"
-                f"{MAX_ATTEMPTS}); aguardando {RETRY_SLEEP:.0f}s",
+                f"embeddings: limite por minuto atingido (tentativa {attempt}/"
+                f"{MAX_ATTEMPTS}); aguardando {delay:.0f}s",
                 file=sys.stderr,
             )
-            time.sleep(RETRY_SLEEP)
+            time.sleep(delay)
     return []  # inalcançável: o loop ou retorna ou levanta
 
 

@@ -31,6 +31,13 @@ import embeddings
 
 CHUNK_WORDS = 120      # tamanho do chunk, em palavras (menor = menos diluição)
 OVERLAP_WORDS = 30     # sobreposição de 25% (chunks pequenos pedem mais continuidade)
+# Portão de qualidade do texto extraído: PDF com camada de texto corrompida
+# (fonte sem mapeamento Unicode) rende caracteres de controle e quase nenhuma
+# letra — passar isso para os embeddings gera chunks de lixo e gasta cota.
+# Valores medidos: livro bom ~78% de letras; PDF corrompido ~2% de letras e
+# ~86% de caracteres de controle.
+MIN_LETTER_RATIO = 0.45
+MAX_CONTROL_RATIO = 0.05
 EDGE_LINES = 3         # linhas de borda onde vive cabeçalho/rodapé
 BOILERPLATE_RATIO = 0.5  # linha em >50% das páginas é cabeçalho/rodapé
 BOILERPLATE_MAX_CHARS = 60
@@ -167,6 +174,39 @@ def _build_chunks(words: list[tuple[str, int]], labels: list[str]) -> list[dict]
     return chunks
 
 
+def text_quality(text: str) -> dict:
+    """Proporção de letras e de caracteres de controle no texto extraído.
+
+    Serve para separar linguagem de verdade de camada de texto corrompida.
+    """
+    total = len(text) or 1
+    letters = sum(1 for char in text if char.isalpha())
+    controls = sum(
+        1 for char in text
+        if unicodedata.category(char) == "Cc" and char not in "\n\t\r "
+    )
+    return {"letter_ratio": letters / total, "control_ratio": controls / total}
+
+
+def check_text_quality(text: str, source: str | Path) -> None:
+    """Recusa PDF cuja camada de texto não é linguagem legível.
+
+    Sem este portão, um PDF corrompido entra no acervo como centenas de chunks
+    de lixo: a busca devolve ruído e a cota de embeddings é gasta à toa.
+    """
+    quality = text_quality(text)
+    if (
+        quality["letter_ratio"] < MIN_LETTER_RATIO
+        or quality["control_ratio"] > MAX_CONTROL_RATIO
+    ):
+        raise ValueError(
+            f"{source}: camada de texto ilegível (letras "
+            f"{quality['letter_ratio']:.0%}, caracteres de controle "
+            f"{quality['control_ratio']:.0%}) — PDF corrompido ou escaneado sem "
+            "OCR. Use outra fonte para este livro."
+        )
+
+
 def extract_chunks(pdf_path: str | Path) -> list[dict]:
     """Extrai os chunks do PDF (sem rede, sem API key).
 
@@ -201,6 +241,7 @@ def extract_chunks(pdf_path: str | Path) -> list[dict]:
             "o POC não faz OCR"
         )
 
+    check_text_quality(" ".join(page_texts), pdf_path)
     return _build_chunks(words, labels)
 
 

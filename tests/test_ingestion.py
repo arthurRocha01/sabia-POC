@@ -22,7 +22,6 @@ import ingestion  # noqa: E402
 from test_database import _isolate_data  # noqa: E402
 
 SUN_TZU_PDF = PROJECT_ROOT / "resources" / "A-Arte-da-Guerra-de-Sun-Tzu.pdf"
-SCANNED_PDF = PROJECT_ROOT / "resources" / "Maquiavel_Nicolau_O_principe_1990.pdf"
 
 
 def test_clean_page_text():
@@ -71,15 +70,73 @@ def test_labels_are_monotonic():
     print("numeracao monotona OK")
 
 
-def test_scanned_pdf_is_rejected():
-    """PDF sem camada de texto (escaneado) tem que ser recusado com erro claro."""
+def _make_image_only_pdf(path: Path) -> None:
+    """Cria um PDF 'escaneado': página com imagem e nenhum texto."""
+    doc = pymupdf.open()
+    page = doc.new_page()
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 64, 64))
+    pixmap.set_rect(pixmap.irect, (200, 200, 200))
+    page.insert_image(pymupdf.Rect(0, 0, 300, 300), pixmap=pixmap)
+    doc.save(path)
+    doc.close()
+
+
+def test_text_quality_gate():
+    """O portao de qualidade separa linguagem de camada de texto corrompida."""
+    # Amostra real do PDF corrompido do Príncipe (caracteres de controle).
+    broken = "2\n  \n\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x02\x0b\n\x0c\x07\x04\x08\r\x0e\x02\n\x0f"
+    good = (
+        "O príncipe deve conhecer a natureza do povo, porque governar sem "
+        "entender quem é governado é construir sobre areia."
+    )
+    assert ingestion.text_quality(good)["letter_ratio"] > 0.7
+    assert ingestion.text_quality(broken)["control_ratio"] > 0.3
+
+    ingestion.check_text_quality(good, "livro.pdf")  # não levanta
     try:
-        ingestion.extract_chunks(SCANNED_PDF)
+        ingestion.check_text_quality(broken, "corrompido.pdf")
     except ValueError as error:
-        assert "sem camada de texto" in str(error), error
-        print("PDF escaneado recusado OK")
-        return
-    raise AssertionError("esperava ValueError para PDF escaneado")
+        assert "ilegível" in str(error), error
+    else:
+        raise AssertionError("esperava ValueError para texto corrompido")
+    print("portao de qualidade OK")
+
+
+def test_quality_gate_is_wired_into_extraction():
+    """O portao roda no caminho real de extração (não é código morto)."""
+    original = ingestion.MIN_LETTER_RATIO
+    ingestion.MIN_LETTER_RATIO = 0.99  # força a reprovação do PDF bom
+    try:
+        try:
+            ingestion.extract_chunks(SUN_TZU_PDF)
+        except ValueError as error:
+            assert "ilegível" in str(error), error
+        else:
+            raise AssertionError("esperava ValueError com o limiar forçado")
+    finally:
+        ingestion.MIN_LETTER_RATIO = original
+    print("portao ligado na extração OK")
+
+
+def test_scanned_pdf_is_rejected():
+    """PDF só com imagem (escaneado) tem que ser recusado com erro claro.
+
+    O caso é gerado aqui, e não lido de resources/: o teste não deve depender de
+    um arquivo que o usuário pode substituir (foi o que aconteceu uma vez).
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="projeto-x-scanned-"))
+    try:
+        path = tmp / "escaneado.pdf"
+        _make_image_only_pdf(path)
+        try:
+            ingestion.extract_chunks(path)
+        except ValueError as error:
+            assert "sem camada de texto" in str(error), error
+            print("PDF escaneado recusado OK")
+            return
+        raise AssertionError("esperava ValueError para PDF escaneado")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_blank_pdf_is_rejected():
@@ -175,6 +232,8 @@ def main():
         test_clean_page_text()
         test_extract_chunks_real_pdf()
         test_labels_are_monotonic()
+        test_text_quality_gate()
+        test_quality_gate_is_wired_into_extraction()
         test_scanned_pdf_is_rejected()
         test_blank_pdf_is_rejected()
         test_validation()
