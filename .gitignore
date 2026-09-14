@@ -15,3 +15,6 @@ Thumbs.db
 
 # Dumps de validação da extração
 *_extraido.txt
+
+# Lixo do Windows (Mark of the Web) ao copiar arquivos do Windows
+*:Zone.Identifier
