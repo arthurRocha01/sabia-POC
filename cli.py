@@ -147,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cli.py",
         description=(
-            "POC do Projeto X: conexões entre livros de uma mesma linha de\n"
+            "Sabiá (POC): conexões entre livros de uma mesma linha de\n"
             "aprendizado. Ingere livros, busca trechos de OUTROS autores e\n"
             "apresenta um card de insights (síntese + relação + fontes)."
         ),

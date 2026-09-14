@@ -124,7 +124,7 @@ def test_scanned_pdf_is_rejected():
     O caso é gerado aqui, e não lido de resources/: o teste não deve depender de
     um arquivo que o usuário pode substituir (foi o que aconteceu uma vez).
     """
-    tmp = Path(tempfile.mkdtemp(prefix="projeto-x-scanned-"))
+    tmp = Path(tempfile.mkdtemp(prefix="sabia-poc-scanned-"))
     try:
         path = tmp / "escaneado.pdf"
         _make_image_only_pdf(path)
@@ -141,7 +141,7 @@ def test_scanned_pdf_is_rejected():
 
 def test_blank_pdf_is_rejected():
     """PDF gerado sem texto também é recusado (não grava livro vazio)."""
-    tmp = Path(tempfile.mkdtemp(prefix="projeto-x-pdf-"))
+    tmp = Path(tempfile.mkdtemp(prefix="sabia-poc-pdf-"))
     try:
         path = tmp / "vazio.pdf"
         doc = pymupdf.open()

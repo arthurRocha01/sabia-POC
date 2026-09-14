@@ -25,7 +25,7 @@ WAR = [0.0, 0.0, 1.0]
 
 def _isolate_data():
     """Redireciona o database para um diretório temporário e limpo."""
-    tmp = Path(tempfile.mkdtemp(prefix="projeto-x-test-"))
+    tmp = Path(tempfile.mkdtemp(prefix="sabia-poc-test-"))
     db.DATA_DIR = tmp / "data"
     db.CHROMA_DIR = db.DATA_DIR / "chroma"
     db.CATALOG_PATH = db.DATA_DIR / "books.json"

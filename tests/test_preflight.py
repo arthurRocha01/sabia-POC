@@ -76,7 +76,7 @@ def test_analyze_reports_problems_without_raising():
 
     # Arquivo real, formato não suportado (a checagem de formato só faz sentido
     # depois de o arquivo existir).
-    tmp = Path(tempfile.mkdtemp(prefix="projeto-x-fmt-"))
+    tmp = Path(tempfile.mkdtemp(prefix="sabia-poc-fmt-"))
     try:
         wrong = tmp / "livro.txt"
         wrong.write_text("texto qualquer", encoding="utf-8")
