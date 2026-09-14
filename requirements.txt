@@ -1,0 +1,17 @@
+# Dependências do Sabiá (POC) — apenas o que o código realmente importa.
+# Testado com Python 3.14. Instalação e uso:
+#
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#   .venv/bin/python tests/test_database.py    # e as outras suítes
+#   .venv/bin/python cli.py listar
+#
+# Nota: o POC NÃO usa LlamaIndex (a orquestração ficou para a fase de produto)
+# nem ebooklib (só PDF por enquanto). Se um dia entrarem, entram aqui.
+# A view (próxima fase) deve acrescentar fastapi e uvicorn.
+
+chromadb==1.5.9
+google-genai==2.22.0
+openai==2.54.0
+pymupdf==1.28.2
+python-dotenv==1.2.3
